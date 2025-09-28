@@ -9,16 +9,26 @@
 
 #include "bencoding.h"
 
-Tracker::Tracker(Torrent *t, QObject *parent)
+Tracker::Tracker(QObject *parent)
+{
+
+    connect(&httpManager, &QNetworkAccessManager::finished, this, &Tracker::onReplyFinished);
+}
+
+void Tracker::addTorrent(Torrent *t)
 {
     torrent = t;
 }
 
-void Tracker::request()
+void Tracker::start(){
+
+    fetchPeerList();
+}
+void Tracker::fetchPeerList()
 {
     //TODO UDP request
     qDebug() << "Http get...";
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+
     qDebug() << torrent->getAnnounce();
     QUrl url(torrent->getAnnounce());
 
@@ -35,30 +45,66 @@ void Tracker::request()
     url.setQuery(query);
 
     QNetworkRequest httpRequest(url);
-    QNetworkReply *reply = manager->get(httpRequest);
 
-    QList<QVariant> responseData;
+    httpManager.get(httpRequest);
 
-    connect(reply, &QNetworkReply::finished, this, &Tracker::onReplyFinished);
-
+    //connect(reply, &QNetworkReply::finished, this, &Tracker::onReplyFinished);
 
 
-    //qDebug() << responseData[0];
+
 
 }
 
-void Tracker::onReplyFinished(){
+void Tracker::onReplyFinished(QNetworkReply *reply){
+    //when reply::finished, obtain the response and decode it
     qDebug() << "tracker reply recieved";
 
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
+    //QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
+    reply->deleteLater();
     if(!reply) return;
 
     QByteArray response = reply->readAll();
     bencoding decoder;
     decoder.loadString(response);
 
-    qDebug() << response;
-    //QList<QVariant> decodedResponse = decoder.decode();
 
-    //qDebug() << decodedResponse[0];
+    QList<QVariant> decodedResponse = decoder.decode();
+
+    QHash dict = decodedResponse[0].toHash();
+
+    //obtain the peer ip and port from dict as a QPair
+    if(dict.contains("peers")){
+        QVariant peerTemp = dict.value("peers");
+        //peer can either be a QList or a QByteArray
+        //TODO peer list
+        if(peerTemp.userType() == QMetaType::QVariantList){
+            QList<QVariant> peers = peerTemp.toList();
+            for(int i=0; i < peers.size(); i++){
+
+            }
+        } else{
+            QByteArray peers = peerTemp.toByteArray();
+            for (int i=0; i+6 <= peers.size(); i += 6){
+                uint8_t set1 = peers[i];
+                uint8_t set2 = peers[i+1];
+                uint8_t set3 = peers[i+2];
+                uint8_t set4 = peers[i+3];
+                QString ip = QString("%1.%2.%3.%4").arg(set1).arg(set2).arg(set3).arg(set4);
+
+                uint16_t port = (peers[4] << 8) | peers[i+5];
+
+                peerList.append({ip, port});
+            }
+        }
+
+    }
+
+    //TODO intervals?
+    if(dict.contains("interval")){
+
+    }
+
+    emit peersFound(peerList);
+    emit replyFinished();
+
 }

@@ -23,6 +23,11 @@ void bencoding::loadString(const QString data){
     pos = 0;
 }
 
+void bencoding::loadString(const QByteArray data){
+    bEncodedData = data;
+    pos = 0;
+}
+
 QList<QVariant> bencoding::decode()
 {
 
@@ -151,6 +156,7 @@ QHash<QString, QVariant> bencoding::parseDict()
         if(key == "info"){
             infoLen = pos - infoStart;
         }
+        qDebug() << key;
         key.clear();
         value.clear();
     }

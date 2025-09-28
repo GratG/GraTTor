@@ -3,9 +3,13 @@
 
 #include <QObject>
 #include <QUrl>
+#include <QTcpSocket>
+
 #include "torrent.h"
 #include "tracker.h"
 
+class Torrent;
+class Tracker;
 class Client : public QObject {
     Q_OBJECT
     public:
@@ -15,8 +19,15 @@ class Client : public QObject {
     private:
         Torrent *torrent;
         Tracker *tracker;
+        QTcpSocket *socket;
+        QList<QVariant> availablePeers;
+
+        void tcpConnected();
 
 
+    public slots:
+        void handShake();
+        void connectPeers(QList<QPair<QString, quint16>> peerList);
 
 };
 

@@ -15,6 +15,7 @@ class bencoding : public QObject{
         bencoding();
         void loadFile(const QString file);
         void loadString(const QString data);
+        void loadString(const QByteArray data);
         QList<QVariant> decode();
         QByteArray infoSection();
 

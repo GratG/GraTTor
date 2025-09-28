@@ -5,23 +5,30 @@
 #include <QNetworkAccessManager>
 
 #include "torrent.h"
+#include "client.h"
 
 class Torrent;
 
 class Tracker : public QObject {
     Q_OBJECT
     public:
-        Tracker(Torrent *t, QObject *parent = nullptr);
-        void request();
+        Tracker(QObject *parent = nullptr);
+        void addTorrent(Torrent *t);
+        void start();
 
     private:
         QString addr;
         Torrent *torrent;
-        //QNetworkAccessManager httpRequest;
+        QNetworkAccessManager httpManager;
+        QList<QPair<QString, quint16>> peerList;
 
     private slots:
-        void onReplyFinished();
+        void onReplyFinished(QNetworkReply *reply);
+        void fetchPeerList();
 
+    signals:
+        void replyFinished();
+        void peersFound(QList<QPair<QString, quint16>> peerList);
 
 
 
