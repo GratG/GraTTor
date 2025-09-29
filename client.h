@@ -23,10 +23,26 @@ class Client : public QObject {
         QList<QVariant> availablePeers;
 
         void tcpConnected();
+        void sendHandshake();
+        void readData();
 
+        bool handshakeSent;
+        bool handshakeRecieved;
+
+        enum patcketType{
+            chokePacket = 0,
+            unchokePacket = 1,
+            interestedPacket = 2,
+            notInterestedPacket = 3,
+            havePacket = 4,
+            bitfieldPacket = 5,
+            requestPacket = 6,
+            piecePacket = 7,
+            cancelPacket = 8
+        };
 
     public slots:
-        void handShake();
+
         void connectPeers(QList<QPair<QString, quint16>> peerList);
 
 };

@@ -91,7 +91,8 @@ void Tracker::onReplyFinished(QNetworkReply *reply){
                 uint8_t set4 = peers[i+3];
                 QString ip = QString("%1.%2.%3.%4").arg(set1).arg(set2).arg(set3).arg(set4);
 
-                uint16_t port = (peers[4] << 8) | peers[i+5];
+                quint16 port = (static_cast<quint8>(peers[i+4]) << 8) |
+                    static_cast<quint8>(peers[i+5]);
 
                 peerList.append({ip, port});
             }
