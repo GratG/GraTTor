@@ -7,24 +7,36 @@
 
 #include "torrent.h"
 #include "tracker.h"
+#include "filemanager.h"
 
 class Torrent;
 class Tracker;
+class FileManager;
 class Client : public QObject {
     Q_OBJECT
     public:
         Client(QObject* parent = nullptr);
 
-        bool setTorrent(const QString &fileName);
+        bool setTorrent(const QString &fileName, const QString &downloadPath = "");
     private:
         Torrent *torrent;
+        FileManager *fileManager;
         Tracker *tracker;
         QTcpSocket *socket;
         QList<QVariant> availablePeers;
 
+        QString downloadDest;
+        int nextPacketLen;
+
+
         void tcpConnected();
+        void tcpDisconnected();
         void sendHandshake();
         void readData();
+
+        //TODO refactor this:
+        void testRequest();
+        void testReceive(QByteArray &packet);
 
         bool handshakeSent;
         bool handshakeRecieved;

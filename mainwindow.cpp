@@ -40,6 +40,7 @@ bool MainWindow::addTorrent(QString &fileName, QString &destDir)
 
     Task task;
     task.client = client;
+    //TODO get/set path directory
     //TODO get proper name for torrent
     task.torrFileName = "PLACE HOLDER";
     tasks.append(task);

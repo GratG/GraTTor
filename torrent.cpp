@@ -57,22 +57,17 @@ bool Torrent::extractBEncode()
          * Here we read the pieces string and assign it properly
         */
 
-
-        //QByteArray data = infoHash["pieces"].toByteArray();
-
         metaInfo.info.pieces = infoHash["pieces"].toByteArray();
         QByteArray data = metaInfo.info.pieces;
 
         for(int i=0; i < data.size(); i+= 20){
             metaInfo.pieceHashes.append(data.mid(i, 20));
         }
+        qDebug() << "Piece hashes: ";
         for(int i = 0; i< metaInfo.pieceHashes.size(); i++){
-        qDebug() << metaInfo.pieceHashes[i].toHex();
+            qDebug() << metaInfo.pieceHashes[i].toHex();
         }
 
-        //qDebug() << "Tracker URL: " << announceList[0];
-        //qDebug() << "Length: " << metaInfo.info.length;
-        //qDebug() << "pieces: " << metaInfo.info.pieces;
     }
 
 
@@ -105,4 +100,10 @@ QByteArray Torrent::getSHA1() const
 uint64_t Torrent::getLength() const
 {
     return metaInfo.info.length;
+}
+
+QString Torrent::getFileName()
+{
+    //TODO multi file...
+    return metaInfo.info.name;
 }

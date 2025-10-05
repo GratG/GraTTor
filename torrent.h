@@ -38,6 +38,7 @@ class Torrent {
         QString getAnnounce() const;
         QByteArray getSHA1() const;
         uint64_t getLength() const;
+        QString getFileName();
     private:
 
         QString fileName;
