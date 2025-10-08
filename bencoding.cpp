@@ -156,7 +156,7 @@ QHash<QString, QVariant> bencoding::parseDict()
         if(key == "info"){
             infoLen = pos - infoStart;
         }
-        qDebug() << key;
+        //qDebug() << key;
         key.clear();
         value.clear();
     }

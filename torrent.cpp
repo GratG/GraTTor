@@ -51,7 +51,8 @@ bool Torrent::extractBEncode()
         metaInfo.info.length  = infoHash["length"].toInt();
         metaInfo.info.name = infoHash["name"].toString();
         metaInfo.info.pieceLength = infoHash["piece length"].toInt();
-
+        qDebug() << "File length: " << metaInfo.info.length;
+        qDebug() << "piece length: " << metaInfo.info.pieceLength;
         /* The pieces field is broken up into SHA1 hashes
          * each hash being 20bytes long.
          * Here we read the pieces string and assign it properly
@@ -86,6 +87,11 @@ QByteArray Torrent::getPieces() const
     return "p";
 }
 
+QList<QByteArray> Torrent::getPieceHashes() const
+{
+    return metaInfo.pieceHashes;
+}
+
 QString Torrent::getAnnounce() const
 {
     //returns the main announce value
@@ -106,4 +112,9 @@ QString Torrent::getFileName()
 {
     //TODO multi file...
     return metaInfo.info.name;
+}
+
+qint64 Torrent::getPieceLength() const
+{
+    return metaInfo.info.pieceLength;
 }

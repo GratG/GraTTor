@@ -2,6 +2,7 @@
 #define CLIENT_H
 
 #include <QObject>
+#include <QBitArray>
 #include <QUrl>
 #include <QTcpSocket>
 
@@ -18,6 +19,7 @@ class Client : public QObject {
         Client(QObject* parent = nullptr);
 
         bool setTorrent(const QString &fileName, const QString &downloadPath = "");
+        bool sendRequest(int pieceIndex, int offset, int length);
     private:
         Torrent *torrent;
         FileManager *fileManager;
@@ -28,11 +30,20 @@ class Client : public QObject {
         QString downloadDest;
         int nextPacketLen;
 
-
         void tcpConnected();
         void tcpDisconnected();
         void sendHandshake();
         void readData();
+
+        //packet related functions
+        void choked();
+        void unchoked();
+
+        void bitfieldReceived(QByteArray &packet);
+        void packetReceived(QByteArray &packet);
+
+        //
+        void initDownload();
 
         //TODO refactor this:
         void testRequest();
@@ -41,6 +52,7 @@ class Client : public QObject {
         bool handshakeSent;
         bool handshakeRecieved;
 
+        QBitArray availablePieces;
         enum patcketType{
             chokePacket = 0,
             unchokePacket = 1,
@@ -54,8 +66,10 @@ class Client : public QObject {
         };
 
     public slots:
-
         void connectPeers(QList<QPair<QString, quint16>> peerList);
+
+    signals:
+        void beginRequest();
 
 };
 

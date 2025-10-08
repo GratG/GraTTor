@@ -8,9 +8,9 @@
 #include <QVariant>
 
 struct TorrentInfo {
-    uint64_t length;
+    quint64 length;
     QString name;
-    uint64_t pieceLength;
+    quint64 pieceLength;
     QByteArray pieces;
 };
 
@@ -35,10 +35,12 @@ class Torrent {
 
         QString getAnnounce(int index) const;
         QByteArray getPieces() const;
+        QList<QByteArray> getPieceHashes() const;
         QString getAnnounce() const;
         QByteArray getSHA1() const;
         uint64_t getLength() const;
         QString getFileName();
+        qint64 getPieceLength() const;
     private:
 
         QString fileName;

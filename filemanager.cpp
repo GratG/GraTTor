@@ -1,7 +1,12 @@
 #include "filemanager.h"
 
 #include <QDebug>
+
+
+const int BLOCK_SIZE = 16 * 1024; //16384
+
 FileManager::FileManager() {}
+
 
 void FileManager::start()
 {
@@ -11,12 +16,66 @@ void FileManager::start()
 void FileManager::setTorrent(Torrent *t)
 {
     torrent = t;
+    pieceLength = t->getPieceLength();
+    totalSize = t->getLength();
+
+    QList<QByteArray> pieceHashes = t->getPieceHashes();
+    pieces.resize(pieceHashes.size());
+    for(int i = 0; i < pieceHashes.size(); i++){
+        pieces[i].hash = pieceHashes[i];
+        int numBlocks = (pieceLength + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        qDebug() << numBlocks;
+        pieces[i].blocks.resize(numBlocks);
+    }
+
 }
 
 void FileManager::setPath(const QString &p)
 {
     downloadDest = p;
 }
+
+int FileManager::selectNextPiece(QBitArray &availablePieces)
+{
+    qDebug() << pieces.size();
+    qDebug() << availablePieces.size();
+    for (int i = 0; i < pieces.size(); i++){
+        if(pieces[i].completed)
+            continue;
+        if(availablePieces.testBit(i)){
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int FileManager::selectBlock(int p)
+{
+    for(int i =0; i < pieces[p].blocks.size(); i ++){
+        Block currBlock = pieces[p].blocks[i];
+        if(currBlock.received != true || currBlock.requested != true){
+            return i;
+        }
+    }
+}
+
+void FileManager::requestNextBlock(Client *c, int pieceIndex)
+{
+    Piece &piece = pieces[pieceIndex];
+
+    for(int i = 0; i < piece.blocks.size(); i++){
+        Block &block = piece.blocks[i];
+        if(block.requested || block.received)
+            continue;
+
+        //c->sendRequest(pieceIndex, i);
+        block.requested = true;
+        break;
+    }
+}
+
+
 
 
 bool FileManager::createFiles()
@@ -43,6 +102,11 @@ bool FileManager::createFiles()
 
 
     return true;
+}
+
+void FileManager::peerUnchoked()
+{
+    qDebug() << "Peer unchoked, beginning requests";
 }
 
 bool FileManager::writeBlock(qint32 &index, qint32 &offset, QByteArray &data)

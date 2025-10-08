@@ -21,12 +21,12 @@ Client::Client(QObject* parent) : QObject(parent){
     //socket connections:
     connect(socket, &QTcpSocket::connected, this, &Client::tcpConnected);
     connect(socket, &QTcpSocket::disconnected, this, &Client::tcpDisconnected);
-    connect(tracker, &Tracker::peersFound, this, &Client::connectPeers);
-    //connect(tracker, &Tracker::replyFinished, this, &Client::handShake);
-
-
-
     connect(socket, &QTcpSocket::readyRead, this, &Client::readData);
+
+    //tracker connections
+    connect(tracker, &Tracker::peersFound, this, &Client::connectPeers);
+
+
 }
 
 bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
@@ -41,6 +41,33 @@ bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
     fileManager->start();
     tracker->addTorrent(torrent);
     tracker->start();
+
+    //filemanager connections
+    connect(this, &Client::beginRequest, fileManager, &FileManager::peerUnchoked);
+
+    return true;
+}
+
+bool Client::sendRequest(int pieceIndex, int offset, int length)
+{
+    QByteArray packet;
+    QDataStream out(&packet, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::BigEndian);
+
+    quint32 msgLength = 13;
+    quint8 msgId = 6;
+
+    out << msgLength;
+    out << msgId;
+    out << (quint32)pieceIndex;
+    out << (quint32)offset;
+    out << (quint32)length;
+
+    socket->write(packet);
+    socket->flush();
+
+    qDebug() << "Sent request:" << packet.toHex();
+
     return true;
 }
 
@@ -50,6 +77,7 @@ void Client::tcpConnected()
 {
     qDebug() << "Tcp socket is connected";
     //QByteArray handshakeStr = buildHandshake();
+
     if(!handshakeSent){
         sendHandshake();
     }
@@ -57,6 +85,7 @@ void Client::tcpConnected()
 
 void Client::tcpDisconnected()
 {
+
     qDebug() << "Tcp socket is disconnected";
 }
 
@@ -133,13 +162,16 @@ void Client::readData(){
             return;
         }
 
-        switch(packet[0]){
+        int packetId = packet[0];
+        packet.remove(0,1);
+        switch(packetId){
             case chokePacket:
                 qDebug() << "choke packet";
+                choked();
                 break;
             case unchokePacket:
                 qDebug() << "unchoke packet";
-                testRequest();
+                unchoked();
                 break;
             case interestedPacket:{
                 qDebug() << "interested packet";
@@ -154,14 +186,15 @@ void Client::readData(){
             case bitfieldPacket:{
                 qDebug() << "bitfield packet";
                 //send interested message
-                QByteArray packet;
-                QDataStream out(&packet, QIODevice::WriteOnly);
+                bitfieldReceived(packet);
+                QByteArray outPacket;
+                QDataStream out(&outPacket, QIODevice::WriteOnly);
                 out << (qint32)1;
-                packet.append(char(2));
-                socket->write(packet);
+                outPacket.append(char(2));
+                socket->write(outPacket);
                 socket->flush();
 
-                qDebug() << "Sent INTERESTED message:" << packet.toHex();
+                qDebug() << "Sent INTERESTED message:" << outPacket.toHex();
 
                 break;
             }
@@ -170,7 +203,7 @@ void Client::readData(){
                 break;
             case piecePacket:
                 qDebug() << "piece packet";
-                testReceive(packet);
+                packetReceived(packet);
                 break;
             case cancelPacket:
                 qDebug() << "cancel packet";
@@ -182,6 +215,59 @@ void Client::readData(){
         nextPacketLen = -1;
     }}
 
+void Client::packetReceived(QByteArray &packet)
+{
+    //TODO abort if invalid size
+    qDebug() << packet.size();
+    //packet.remove(0, 1);
+    int index = packet.left(4).toInt();
+    packet.remove(0,4);
+    int begin = packet.left(4).toInt();
+    packet.remove(0,4);
+    qDebug() <<"packet contents: " <<  packet;
+    qDebug() << "Packet length: " << packet.size();
+
+    fileManager->writeBlock(index, begin, packet);
+}
+
+void Client::choked()
+{
+    //TODO choke and stop current block/piece writing
+}
+
+void Client::unchoked()
+{
+    //we are free to request blocks
+    //TODO start requesting blocks/pieces through filemanager
+    testRequest();
+    emit beginRequest();
+
+}
+
+void Client::bitfieldReceived(QByteArray &packet)
+{
+    //figure out which pieces are available
+    availablePieces.clear();
+    qDebug() << packet.size();
+    for(int i = 0; i < packet.size(); i++){
+        quint8 byte = static_cast<quint8>(packet[i]);
+        for(int bit = 0; bit < 8; bit++){
+            int pieceIndex = i * 8 + (7-bit);
+            if(availablePieces.size() <= pieceIndex)
+                availablePieces.resize(pieceIndex + 1);
+            if(byte & (1<<bit))
+                availablePieces.setBit(pieceIndex, true);
+        }
+    }
+
+    qDebug() << "available pieces: " << availablePieces;
+}
+
+void Client::initDownload()
+{
+    //emit peerUnchoke;
+}
+
 
 
 
@@ -191,36 +277,33 @@ void Client::testRequest()
     QDataStream out(&request, QIODevice::WriteOnly);
     out.setByteOrder(QDataStream::BigEndian);
 
+    int nextPiece = fileManager->selectNextPiece(availablePieces);
+    int nextBlock = fileManager->selectBlock(nextPiece);
+
+
+    if(nextPiece != -1){
+        sendRequest(nextPiece, 1 * BLOCK_SIZE, BLOCK_SIZE);
+    }
     // length prefix (13)
-    out << (quint32)13;
+    //out << (quint32)13;
 
     // message ID (6)
-    out << char(6);
+    //out << char(6);
 
     //out.setByteOrder(QDataStream::BigEndian);
     // piece index (0), begin (0), length (16384)
-    out << (quint32)0;
-    out << (quint32)0;
-    out << (quint32)16384;
-    socket->write(request);
-    socket->flush();
+    //out << (quint32)0;
+    //out << (quint32)0;
+    //out << (quint32)16384;
+    //socket->write(request);
+    //socket->flush();
 
-    qDebug() << "Sent request:" << request.toHex();
+
 }
 
 void Client::testReceive(QByteArray &packet)
 {
-    //TODO abort if invalid size
-    qDebug() << packet.size();
-    packet.remove(0, 1);
-    int index = packet.left(4).toInt();
-    packet.remove(0,4);
-    int begin = packet.left(4).toInt();
-    packet.remove(0,4);
-    qDebug() <<"packet contents: " <<  packet;
-    qDebug() << "Packet length: " << packet.size();
 
-    fileManager->writeBlock(index, begin, packet);
 }
 
 void Client::connectPeers(QList<QPair<QString, quint16>> peerList)
