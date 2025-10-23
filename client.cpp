@@ -219,14 +219,21 @@ void Client::packetReceived(QByteArray &packet)
 {
     //TODO abort if invalid size
     qDebug() << packet.size();
-    //packet.remove(0, 1);
-    int index = packet.left(4).toInt();
-    packet.remove(0,4);
-    int begin = packet.left(4).toInt();
-    packet.remove(0,4);
+    QDataStream stream(&packet, QIODevice::ReadOnly);
+    //qDebug() << "raw packet: " << packet;
+    //quint32 index = (quint32)packet.first(4);
+    //packet.remove(0,4);
+    //qDebug() << packet;
+    //quint32 begin = (quint32)packet.first(4);
+    //packet.remove(0,4);
+    quint32 index, begin;
+    stream >> index;
+    stream >> begin;
+
     qDebug() <<"packet contents: " <<  packet;
     qDebug() << "Packet length: " << packet.size();
 
+    qDebug() << "packet index: " << index <<" packet offset: " << begin;
     fileManager->writeBlock(index, begin, packet);
 }
 
@@ -282,21 +289,11 @@ void Client::testRequest()
 
 
     if(nextPiece != -1){
-        sendRequest(nextPiece, 1 * BLOCK_SIZE, BLOCK_SIZE);
+        sendRequest(nextPiece, nextBlock * BLOCK_SIZE, BLOCK_SIZE);
     }
-    // length prefix (13)
-    //out << (quint32)13;
+    sendRequest(nextPiece, 1 * BLOCK_SIZE, BLOCK_SIZE);
 
-    // message ID (6)
-    //out << char(6);
-
-    //out.setByteOrder(QDataStream::BigEndian);
-    // piece index (0), begin (0), length (16384)
-    //out << (quint32)0;
-    //out << (quint32)0;
-    //out << (quint32)16384;
-    //socket->write(request);
-    //socket->flush();
+    sendRequest(2, 0 * BLOCK_SIZE, BLOCK_SIZE);
 
 
 }
@@ -314,7 +311,7 @@ void Client::connectPeers(QList<QPair<QString, quint16>> peerList)
     }
 
     qDebug() << peerList[2].second;
-    socket->connectToHost(peerList[2].first, peerList[2].second);
+    socket->connectToHost(peerList[1].first, peerList[1].second);
 
     if(!socket->waitForConnected(5000)){
         qWarning() << "Could not connect: " << socket->errorString();

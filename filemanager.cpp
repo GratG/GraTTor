@@ -109,15 +109,20 @@ void FileManager::peerUnchoked()
     qDebug() << "Peer unchoked, beginning requests";
 }
 
-bool FileManager::writeBlock(qint32 &index, qint32 &offset, QByteArray &data)
+bool FileManager::writeBlock(quint32 &index, quint32 &offset, QByteArray &data)
 {
     QFile *file = fileList.first();
+
+    pieces[index].blocks[offset/BLOCK_SIZE].received = true;
 
     if(!file->open(QFile::ReadWrite)){
         return false;
     }
-    //figure out index/offset
 
+    qint32 startIndex = (pieceLength * index) + offset;
+    qDebug() << "start index: " << startIndex;
+    //seek write index
+    file->seek(startIndex);
     file->write(data);
 
 

@@ -35,7 +35,7 @@ class FileManager: public QObject {
         int selectNextPiece(QBitArray &availablePieces);
         int selectBlock(int i);
         void requestNextBlock(Client *c, int pieceIndex);
-        bool writeBlock(qint32 &index, qint32 &offset, QByteArray &data);
+        bool writeBlock(quint32 &index, quint32 &offset, QByteArray &data);
 
 
     private:
