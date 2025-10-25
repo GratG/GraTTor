@@ -15,6 +15,7 @@ class Tracker : public QObject {
         Tracker(QObject *parent = nullptr);
         void addTorrent(Torrent *t);
         void start();
+        QList<QPair<QString, quint16>> getPeerList();
 
     private:
         QString addr;

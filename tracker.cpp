@@ -24,6 +24,11 @@ void Tracker::start(){
 
     fetchPeerList();
 }
+
+QList<QPair<QString, quint16> > Tracker::getPeerList()
+{
+    return peerList;
+}
 void Tracker::fetchPeerList()
 {
     //TODO UDP request
@@ -47,9 +52,6 @@ void Tracker::fetchPeerList()
     QNetworkRequest httpRequest(url);
 
     httpManager.get(httpRequest);
-
-    //connect(reply, &QNetworkReply::finished, this, &Tracker::onReplyFinished);
-
 
 
 

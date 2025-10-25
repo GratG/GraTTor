@@ -5,12 +5,36 @@
 
 const int BLOCK_SIZE = 16 * 1024; //16384
 
-FileManager::FileManager() {}
+FileManager::FileManager(QObject *parent): QThread(parent){
+    quit = false;
+}
 
 
-void FileManager::start()
+
+FileManager::~FileManager()
 {
-    createFiles();
+    quit = true;
+}
+
+void FileManager::run()
+{
+    if(!createFiles()){
+        return;
+    }
+
+    do{
+
+        mutex.lock();
+        QList<WriteRequest> newWriteRequests = writeRequests;
+        writeRequests.clear();
+        while(!quit && !newWriteRequests.isEmpty()){
+            qDebug() << "writing block...";
+            WriteRequest request = newWriteRequests.takeFirst();
+            writeBlock(request.pieceIndex, request.offset, request.data);
+        }
+        mutex.unlock();
+    } while(!quit);
+
 }
 
 void FileManager::setTorrent(Torrent *t)
@@ -24,7 +48,7 @@ void FileManager::setTorrent(Torrent *t)
     for(int i = 0; i < pieceHashes.size(); i++){
         pieces[i].hash = pieceHashes[i];
         int numBlocks = (pieceLength + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        qDebug() << numBlocks;
+        qDebug() << "Number of blocks: " << numBlocks;
         pieces[i].blocks.resize(numBlocks);
     }
 
@@ -37,12 +61,12 @@ void FileManager::setPath(const QString &p)
 
 int FileManager::selectNextPiece(QBitArray &availablePieces)
 {
-    qDebug() << pieces.size();
-    qDebug() << availablePieces.size();
+
     for (int i = 0; i < pieces.size(); i++){
         if(pieces[i].completed)
             continue;
         if(availablePieces.testBit(i)){
+            qDebug() << "available piece found at " << i;
             return i;
         }
     }
@@ -57,6 +81,19 @@ int FileManager::selectBlock(int p)
         if(currBlock.received != true || currBlock.requested != true){
             return i;
         }
+    }
+
+    return -1;
+}
+
+int FileManager::calcBlockLength(int p, int b)
+{
+
+    if(pieces.size()-1 == p && pieces[p].blocks.size()-1 == b){
+        qDebug() << "FINAL PIECE";
+        return totalSize % BLOCK_SIZE ;
+    }else{
+        return BLOCK_SIZE;
     }
 }
 
@@ -73,6 +110,38 @@ void FileManager::requestNextBlock(Client *c, int pieceIndex)
         block.requested = true;
         break;
     }
+}
+
+void FileManager::blockRequested(int p, int b)
+{
+    pieces[p].blocks[b].requested = true;
+
+    //check if all blocks in piece were requested
+    pieces[p].completed = true;
+    for(int i = 0; i < pieces[p].blocks.size(); i++){
+        if(pieces[p].blocks[i].requested == false){
+            pieces[p].completed = false;
+            break;
+        }
+    }
+}
+
+bool FileManager::blockRecieved(int p, int b)
+{
+    pieces[p].blocks[b].received = true;
+
+    return true;
+}
+
+void FileManager::writeRequest(quint32 &index, quint32 &offset, QByteArray &data)
+{
+    WriteRequest request;
+    request.pieceIndex = index;
+    request.offset = offset;
+    request.data = data;
+
+    QMutexLocker Locker(&mutex);
+    writeRequests << request;
 }
 
 
@@ -109,16 +178,21 @@ void FileManager::peerUnchoked()
     qDebug() << "Peer unchoked, beginning requests";
 }
 
+
+
 bool FileManager::writeBlock(quint32 &index, quint32 &offset, QByteArray &data)
 {
     QFile *file = fileList.first();
-
+    qDebug() << "data size: " << data.size();
     pieces[index].blocks[offset/BLOCK_SIZE].received = true;
 
     if(!file->open(QFile::ReadWrite)){
         return false;
     }
 
+    if(index == pieces.size() && offset/BLOCK_SIZE == pieces[index].blocks.size()){
+        qDebug() << "writing final block";
+    }
     qint32 startIndex = (pieceLength * index) + offset;
     qDebug() << "start index: " << startIndex;
     //seek write index

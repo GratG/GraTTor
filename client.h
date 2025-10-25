@@ -34,13 +34,14 @@ class Client : public QObject {
         void tcpDisconnected();
         void sendHandshake();
         void readData();
-
+        void reconnectPeer();
         //packet related functions
         void choked();
         void unchoked();
 
         void bitfieldReceived(QByteArray &packet);
         void packetReceived(QByteArray &packet);
+        void reqNextPiece();
 
         //
         void initDownload();

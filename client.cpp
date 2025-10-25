@@ -9,6 +9,7 @@
 #include <QEventLoop>
 #include <QtEndian>
 #include <QTcpSocket>
+#include <QRandomGenerator>
 
 const int BLOCK_SIZE = 16 * 1024; //16384
 
@@ -38,7 +39,8 @@ bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
     fileManager = new FileManager();
     fileManager->setPath(downloadPath);
     fileManager->setTorrent(torrent);
-    fileManager->start();
+
+    fileManager->start(QThread::LowestPriority);
     tracker->addTorrent(torrent);
     tracker->start();
 
@@ -50,6 +52,7 @@ bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
 
 bool Client::sendRequest(int pieceIndex, int offset, int length)
 {
+
     QByteArray packet;
     QDataStream out(&packet, QIODevice::WriteOnly);
     out.setByteOrder(QDataStream::BigEndian);
@@ -85,8 +88,9 @@ void Client::tcpConnected()
 
 void Client::tcpDisconnected()
 {
-
-    qDebug() << "Tcp socket is disconnected";
+    qDebug() << "Tcp socket is disconnected, attempting reconnect";
+    handshakeSent, handshakeSent = false;
+    //reconnectPeer();
 }
 
 void Client::sendHandshake()
@@ -215,26 +219,31 @@ void Client::readData(){
         nextPacketLen = -1;
     }}
 
+
 void Client::packetReceived(QByteArray &packet)
 {
     //TODO abort if invalid size
-    qDebug() << packet.size();
+    //qDebug() << packet.size();
     QDataStream stream(&packet, QIODevice::ReadOnly);
-    //qDebug() << "raw packet: " << packet;
-    //quint32 index = (quint32)packet.first(4);
-    //packet.remove(0,4);
-    //qDebug() << packet;
-    //quint32 begin = (quint32)packet.first(4);
-    //packet.remove(0,4);
     quint32 index, begin;
     stream >> index;
     stream >> begin;
-
-    qDebug() <<"packet contents: " <<  packet;
+    qDebug() << "packet received info: index: " << index << " begin: " << begin;
+    fileManager->blockRecieved(index, begin/BLOCK_SIZE);
+    //qDebug() <<"packet contents: " <<  packet;
     qDebug() << "Packet length: " << packet.size();
 
-    qDebug() << "packet index: " << index <<" packet offset: " << begin;
-    fileManager->writeBlock(index, begin, packet);
+    //qDebug() << "packet index: " << index <<" packet offset: " << begin;
+    fileManager->writeRequest(index, begin, packet);
+    testRequest();
+}
+
+void Client::reqNextPiece()
+{
+
+
+
+
 }
 
 void Client::choked()
@@ -255,7 +264,6 @@ void Client::bitfieldReceived(QByteArray &packet)
 {
     //figure out which pieces are available
     availablePieces.clear();
-    qDebug() << packet.size();
     for(int i = 0; i < packet.size(); i++){
         quint8 byte = static_cast<quint8>(packet[i]);
         for(int bit = 0; bit < 8; bit++){
@@ -285,15 +293,21 @@ void Client::testRequest()
     out.setByteOrder(QDataStream::BigEndian);
 
     int nextPiece = fileManager->selectNextPiece(availablePieces);
-    int nextBlock = fileManager->selectBlock(nextPiece);
 
 
     if(nextPiece != -1){
-        sendRequest(nextPiece, nextBlock * BLOCK_SIZE, BLOCK_SIZE);
-    }
-    sendRequest(nextPiece, 1 * BLOCK_SIZE, BLOCK_SIZE);
+        int nextBlock = fileManager->selectBlock(nextPiece);
+        int blockLength = fileManager->calcBlockLength(nextPiece, nextBlock);
+        qDebug() << "Piece index: " << nextPiece
+                 << " block index: " << nextBlock
+                 << " block Length: " << blockLength;
+        fileManager->blockRequested(nextPiece, nextBlock);
+        sendRequest(nextPiece, nextBlock * BLOCK_SIZE, blockLength);
 
-    sendRequest(2, 0 * BLOCK_SIZE, BLOCK_SIZE);
+    }
+    //sendRequest(nextPiece, 1 * BLOCK_SIZE, BLOCK_SIZE);
+
+    //sendRequest(2, 0 * BLOCK_SIZE, BLOCK_SIZE);
 
 
 }
@@ -306,16 +320,30 @@ void Client::testReceive(QByteArray &packet)
 void Client::connectPeers(QList<QPair<QString, quint16>> peerList)
 {
     //TODO peerList queue?
+    int random = QRandomGenerator::global()->bounded(peerList.size());
     for (auto &p : peerList) {
         qDebug() << "Peer:" << p.first << ":" << p.second;
     }
 
-    qDebug() << peerList[2].second;
-    socket->connectToHost(peerList[1].first, peerList[1].second);
+    socket->connectToHost(peerList[random].first, peerList[random].second);
 
     if(!socket->waitForConnected(5000)){
         qWarning() << "Could not connect: " << socket->errorString();
     }
 
 }
+
+void Client::reconnectPeer()
+{
+    //todo ensure peerlist is populated
+    QList<QPair<QString, quint16>> peerList = tracker->getPeerList();
+    int random = QRandomGenerator::global()->bounded(peerList.size());
+
+    socket->connectToHost(peerList[random].first, peerList[random].second);
+
+    if(!socket->waitForConnected(5000)){
+        qWarning() << "Could not connect: " << socket->errorString();
+    }
+}
+
 
