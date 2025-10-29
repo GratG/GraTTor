@@ -33,6 +33,15 @@ void FileManager::run()
             writeBlock(request.pieceIndex, request.offset, request.data);
         }
         mutex.unlock();
+        //manage verification requests
+        if(!verifyRequests.isEmpty()){
+            for(int i = 0; i < verifyRequests.size(); i ++){
+                verifyPiece(verifyRequests[i]);
+            }
+            verifyRequests.clear();
+        }
+
+
     } while(!quit);
 
 }
@@ -48,7 +57,7 @@ void FileManager::setTorrent(Torrent *t)
     for(int i = 0; i < pieceHashes.size(); i++){
         pieces[i].hash = pieceHashes[i];
         int numBlocks = (pieceLength + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        qDebug() << "Number of blocks: " << numBlocks;
+
         pieces[i].blocks.resize(numBlocks);
     }
 
@@ -63,8 +72,9 @@ int FileManager::selectNextPiece(QBitArray &availablePieces)
 {
 
     for (int i = 0; i < pieces.size(); i++){
-        if(pieces[i].completed)
+        if(pieces[i].completed){
             continue;
+        }
         if(availablePieces.testBit(i)){
             qDebug() << "available piece found at " << i;
             return i;
@@ -191,10 +201,10 @@ bool FileManager::writeBlock(quint32 &index, quint32 &offset, QByteArray &data)
     }
 
     if(index == pieces.size() && offset/BLOCK_SIZE == pieces[index].blocks.size()){
-        qDebug() << "writing final block";
+        //qDebug() << "writing final block";
     }
-    qint32 startIndex = (pieceLength * index) + offset;
-    qDebug() << "start index: " << startIndex;
+    quint32 startIndex = (pieceLength * index) + offset;
+    qDebug() << "write start index: " << startIndex;
     //seek write index
     file->seek(startIndex);
     file->write(data);
@@ -202,4 +212,74 @@ bool FileManager::writeBlock(quint32 &index, quint32 &offset, QByteArray &data)
 
     file->close();
     return true;
+}
+
+QByteArray FileManager::readBlock(quint32 index, quint32 offset, quint32 length)
+{
+    QFile *file = fileList.first();
+    QByteArray data;
+
+    quint64 startIndex = (index * pieceLength) + offset;
+    qDebug() << "read start index: " << startIndex;
+    if(!file->open(QFile::ReadWrite)){
+
+    }
+
+    file->seek(startIndex);
+    data = file->read(length);
+
+    file->close();
+    return data;
+}
+
+bool FileManager::verifyPiece(quint32 index)
+{
+    QByteArray fullPiece = readBlock(index, 0, pieceLength);
+    QByteArray pieceSum = QCryptographicHash::hash(fullPiece, QCryptographicHash::Sha1);
+
+    if(pieceSum != pieces[index].hash){
+        qDebug() << "INVALID PIECE HASH";
+        resetInvalidPiece(index);
+        return false;
+    } else{
+        qDebug() << "VALID PIECE HASH";
+    }
+
+    return true;
+
+}
+
+
+void FileManager::addVerifyPiece(quint32 index)
+{
+    QMutexLocker locker(&mutex);
+    verifyRequests << index;
+}
+
+void FileManager::resetInvalidPiece(quint32 index)
+{
+    Piece p = pieces[index];
+
+    p.completed = false;
+    for(int i = 0; i < p.blocks.size(); i ++){
+        Block b = p.blocks[i];
+        b.received = false;
+        b.requested = false;
+    }
+}
+
+void FileManager::verifyList()
+{
+
+}
+
+int FileManager::remainingBlocks(const int index) const
+{
+    int total = 0;
+    for(int i = 0; i < pieces[index].blocks.size(); i++){
+        Block currBlock = pieces[index].blocks[i];
+        if(!currBlock.received)
+            total++;
+    }
+    return total;
 }

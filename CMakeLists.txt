@@ -35,8 +35,9 @@ find_package(Qt6 REQUIRED COMPONENTS Core)
         bencoding.h bencoding.cpp
         torrent.h torrent.cpp
         client.h client.cpp
-        tracker.h tracker.cpp
+        tracker.cpp
         filemanager.h filemanager.cpp
+        tracker.h
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET GraTTor APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

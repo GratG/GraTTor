@@ -41,6 +41,7 @@ class Torrent {
         uint64_t getLength() const;
         QString getFileName();
         qint64 getPieceLength() const;
+        quint32 getPieceCount() const;
     private:
 
         QString fileName;
@@ -55,8 +56,7 @@ class Torrent {
         QString createdBy;
         //file info
         QList<FileItem> files;
-        //tracker info
-        //QList<Tracker> trackers;
+
 
 };
 

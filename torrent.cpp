@@ -118,3 +118,9 @@ qint64 Torrent::getPieceLength() const
 {
     return metaInfo.info.pieceLength;
 }
+
+quint32 Torrent::getPieceCount() const
+{
+    qDebug() << "AMOUNT OF PIECES: " << metaInfo.pieceHashes.size();
+    return metaInfo.pieceHashes.size();
+}

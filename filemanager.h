@@ -36,11 +36,14 @@ class FileManager: public QThread {
         int selectNextPiece(QBitArray &availablePieces);
         int selectBlock(int i);
         int calcBlockLength(int p, int b);
+        int remainingBlocks(const int index) const;
         void requestNextBlock(Client *c, int pieceIndex);
         void blockRequested(int p, int b);
         bool blockRecieved(int p, int b);
         void writeRequest(quint32 &index, quint32 &offset, QByteArray &data);
 
+        void addVerifyPiece(quint32 index);
+        void resetInvalidPiece(quint32 index);
 
     private:
         bool quit;
@@ -67,7 +70,12 @@ class FileManager: public QThread {
         //    qint32 id;
         //};
         QList<WriteRequest> writeRequests;
+        QList<quint32> verifyRequests;
         bool writeBlock(quint32 &index, quint32 &offset, QByteArray &data);
+        QByteArray readBlock(quint32 index, quint32 offset, quint32 length);
+        bool verifyPiece(quint32 index);
+
+        void verifyList();
 
     public slots:
         void peerUnchoked();

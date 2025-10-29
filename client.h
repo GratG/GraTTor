@@ -40,9 +40,12 @@ class Client : public QObject {
         void unchoked();
 
         void bitfieldReceived(QByteArray &packet);
+        void sendInterested();
+        bool clientInterested;
         void packetReceived(QByteArray &packet);
         void reqNextPiece();
 
+        void peerPieceUpdate();
         //
         void initDownload();
 
@@ -53,7 +56,8 @@ class Client : public QObject {
         bool handshakeSent;
         bool handshakeRecieved;
 
-        QBitArray availablePieces;
+        QBitArray myPieces;
+        QBitArray peerPieces;
         enum patcketType{
             chokePacket = 0,
             unchokePacket = 1,
