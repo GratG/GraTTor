@@ -5,7 +5,7 @@
 #include <QBitArray>
 #include <QUrl>
 #include <QTcpSocket>
-
+#include <QTimer>
 #include "torrent.h"
 #include "tracker.h"
 #include "filemanager.h"
@@ -18,6 +18,8 @@ class Client : public QObject {
     public:
         Client(QObject* parent = nullptr);
 
+        QString getTorrName();
+
         bool setTorrent(const QString &fileName, const QString &downloadPath = "");
         bool sendRequest(int pieceIndex, int offset, int length);
     private:
@@ -26,10 +28,12 @@ class Client : public QObject {
         Tracker *tracker;
         QTcpSocket *socket;
         QList<QVariant> availablePeers;
+        QTimer *timeoutTimer;
 
         QString downloadDest;
-        int nextPacketLen;
+        quint32 nextPacketLen;
 
+        void createSocket();
         void tcpConnected();
         void tcpDisconnected();
         void sendHandshake();
@@ -39,6 +43,7 @@ class Client : public QObject {
         void choked();
         void unchoked();
 
+        void sendHave(quint32 &index);
         void bitfieldReceived(QByteArray &packet);
         void sendInterested();
         bool clientInterested;
@@ -72,9 +77,12 @@ class Client : public QObject {
 
     public slots:
         void connectPeers(QList<QPair<QString, quint16>> peerList);
+        void pieceUpdate(quint32 index);
+        void timeoutSocket();
 
     signals:
         void beginRequest();
+        void updateProg(double percent);
 
 };
 

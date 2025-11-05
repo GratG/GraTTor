@@ -80,8 +80,11 @@ class FileManager: public QThread {
     public slots:
         void peerUnchoked();
 
+    signals:
+        void validPiece(quint32 index);
     protected:
         void run() override;
+
 
 };
 

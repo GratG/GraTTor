@@ -28,7 +28,6 @@ void FileManager::run()
         QList<WriteRequest> newWriteRequests = writeRequests;
         writeRequests.clear();
         while(!quit && !newWriteRequests.isEmpty()){
-            qDebug() << "writing block...";
             WriteRequest request = newWriteRequests.takeFirst();
             writeBlock(request.pieceIndex, request.offset, request.data);
         }
@@ -76,7 +75,6 @@ int FileManager::selectNextPiece(QBitArray &availablePieces)
             continue;
         }
         if(availablePieces.testBit(i)){
-            qDebug() << "available piece found at " << i;
             return i;
         }
     }
@@ -100,7 +98,7 @@ int FileManager::calcBlockLength(int p, int b)
 {
 
     if(pieces.size()-1 == p && pieces[p].blocks.size()-1 == b){
-        qDebug() << "FINAL PIECE";
+        //final piece
         return totalSize % BLOCK_SIZE ;
     }else{
         return BLOCK_SIZE;
@@ -193,18 +191,13 @@ void FileManager::peerUnchoked()
 bool FileManager::writeBlock(quint32 &index, quint32 &offset, QByteArray &data)
 {
     QFile *file = fileList.first();
-    qDebug() << "data size: " << data.size();
     pieces[index].blocks[offset/BLOCK_SIZE].received = true;
 
     if(!file->open(QFile::ReadWrite)){
         return false;
     }
 
-    if(index == pieces.size() && offset/BLOCK_SIZE == pieces[index].blocks.size()){
-        //qDebug() << "writing final block";
-    }
-    quint32 startIndex = (pieceLength * index) + offset;
-    qDebug() << "write start index: " << startIndex;
+    quint64 startIndex = (pieceLength * index) + offset;
     //seek write index
     file->seek(startIndex);
     file->write(data);
@@ -220,7 +213,6 @@ QByteArray FileManager::readBlock(quint32 index, quint32 offset, quint32 length)
     QByteArray data;
 
     quint64 startIndex = (index * pieceLength) + offset;
-    qDebug() << "read start index: " << startIndex;
     if(!file->open(QFile::ReadWrite)){
 
     }
@@ -242,7 +234,8 @@ bool FileManager::verifyPiece(quint32 index)
         resetInvalidPiece(index);
         return false;
     } else{
-        qDebug() << "VALID PIECE HASH";
+        //qDebug() << "VALID PIECE HASH";
+        emit validPiece(index);
     }
 
     return true;

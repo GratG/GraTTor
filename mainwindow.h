@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QStandardItemModel>
 #include "client.h"
 #include "torrent.h"
 
@@ -11,6 +12,7 @@ namespace Ui {
 class MainWindow;
 }
 QT_END_NAMESPACE
+
 
 class MainWindow : public QMainWindow
 {
@@ -22,9 +24,11 @@ public:
 
 private slots:
     void addTorrentTrigger();
+    void updateProg(double percent);
 
 private:
     Ui::MainWindow *ui;
+    QStandardItemModel *model;
 
     bool addTorrent(QString &fileName, QString &destDir);
 

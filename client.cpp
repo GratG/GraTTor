@@ -19,17 +19,29 @@ Client::Client(QObject* parent) : QObject(parent){
     clientInterested = false;
     nextPacketLen = -1;
     tracker = new Tracker(this);
+    createSocket();
+    //tracker connections
+    connect(tracker, &Tracker::peersFound, this, &Client::connectPeers);
+
+}
+
+QString Client::getTorrName()
+{
+    return torrent->getFileName();
+}
+
+void Client::createSocket()
+{
     socket = new QTcpSocket(this);
+    timeoutTimer = new QTimer();
+    timeoutTimer->setSingleShot(true);
     //socket connections:
     connect(socket, &QTcpSocket::connected, this, &Client::tcpConnected);
     connect(socket, &QTcpSocket::disconnected, this, &Client::tcpDisconnected);
     connect(socket, &QTcpSocket::readyRead, this, &Client::readData);
-
-    //tracker connections
-    connect(tracker, &Tracker::peersFound, this, &Client::connectPeers);
-
-
+    connect(timeoutTimer, &QTimer::timeout, this, &Client::timeoutSocket);
 }
+
 
 bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
 {
@@ -42,17 +54,19 @@ bool Client::setTorrent(const QString &fileName, const QString &downloadPath)
     peerPieces.resize(torrent->getPieceCount());
     peerPieces.fill(false);
 
-    fileManager = new FileManager();
+    fileManager = new FileManager(this);
     fileManager->setPath(downloadPath);
     fileManager->setTorrent(torrent);
 
-    fileManager->start(QThread::LowestPriority);
+
     tracker->addTorrent(torrent);
     tracker->start();
 
     //filemanager connections
     connect(this, &Client::beginRequest, fileManager, &FileManager::peerUnchoked);
+    connect(fileManager, &FileManager::validPiece ,this, &Client::pieceUpdate);
 
+    fileManager->start(QThread::LowestPriority);
     return true;
 }
 
@@ -75,7 +89,7 @@ bool Client::sendRequest(int pieceIndex, int offset, int length)
     socket->write(packet);
     socket->flush();
 
-    qDebug() << "Sent request:" << packet.toHex();
+
 
     return true;
 }
@@ -84,10 +98,11 @@ bool Client::sendRequest(int pieceIndex, int offset, int length)
 
 void Client::tcpConnected()
 {
-    qDebug() << "Tcp socket is connected";
-    //QByteArray handshakeStr = buildHandshake();
+    //qDebug() << "Tcp socket is connected";
+
 
     if(!handshakeSent){
+        //qDebug() << "sending handshake";
         sendHandshake();
     }
 }
@@ -95,8 +110,12 @@ void Client::tcpConnected()
 void Client::tcpDisconnected()
 {
     qDebug() << "Tcp socket is disconnected, attempting reconnect";
-    handshakeSent, handshakeSent = false;
-    //reconnectPeer();
+    handshakeSent = false;
+    handshakeRecieved = false;
+    clientInterested = false;
+    nextPacketLen = -1;
+    createSocket();
+    reconnectPeer();
 }
 
 void Client::sendHandshake()
@@ -120,8 +139,10 @@ void Client::sendHandshake()
 }
 
 void Client::readData(){
-    //QByteArray response = socket->readAll();
-    qDebug() << "message recieved";
+
+    timeoutTimer->stop();
+    //qDebug() << "message recieved";
+
     if(!handshakeRecieved){
         if(socket->bytesAvailable() < 68){
             return;
@@ -144,7 +165,7 @@ void Client::readData(){
         QByteArray peerID = socket->read(20);
 
         handshakeRecieved = true;
-        //qDebug() << info;
+
     } else{
         //TODO ensure packet length is right
         if(nextPacketLen == -1){
@@ -152,7 +173,7 @@ void Client::readData(){
                 return;
 
             nextPacketLen = qFromBigEndian<qint32>(socket->read(4));
-            //qDebug() << "Packet Length: " << nextPacketLen;
+
         }
 
         if(nextPacketLen == 0){
@@ -175,23 +196,23 @@ void Client::readData(){
         packet.remove(0,1);
         switch(packetId){
             case chokePacket:
-                qDebug() << "choke packet";
+                //qDebug() << "choke packet";
                 choked();
                 break;
             case unchokePacket:
-                qDebug() << "unchoke packet: " << packet.toHex();
+                //qDebug() << "unchoke packet: " << packet.toHex();
 
                 unchoked();
                 break;
             case interestedPacket:{
-                qDebug() << "interested packet";
+                //qDebug() << "interested packet";
                 break;
             }
             case notInterestedPacket:
-                qDebug() << "not interested packet";
+                //qDebug() << "not interested packet";
                 break;
             case havePacket:{
-                qDebug() << "have packet" << packet.toHex();
+                //qDebug() << "have packet" << packet.toHex();
 
                 quint32 index = qFromBigEndian<quint32>(&packet.data()[0]);
                 qDebug() << "piece index: " << index;
@@ -202,27 +223,28 @@ void Client::readData(){
                 break;
             }
             case bitfieldPacket:{
-                qDebug() << "bitfield packet";
+                //qDebug() << "bitfield packet";
                 //send interested message
                 bitfieldReceived(packet);
                 sendInterested();
                 break;
             }
             case requestPacket:
-                qDebug() << "request packet";
+                //qDebug() << "request packet";
                 break;
             case piecePacket:
-                qDebug() << "piece packet";
+                //qDebug() << "piece packet";
                 packetReceived(packet);
                 break;
             case cancelPacket:
-                qDebug() << "cancel packet";
+                //qDebug() << "cancel packet";
                 break;
             default:
-                qDebug() << "unsupported packet";
+                //qDebug() << "unsupported packet";
                 break;
         }
         nextPacketLen = -1;
+        timeoutTimer->start(50000);
     }}
 
 
@@ -236,17 +258,14 @@ void Client::packetReceived(QByteArray &packet)
 
     stream >> index;
     stream >> begin;
-    qDebug() << "packet received info: index: " << index << " begin: " << begin;
-    fileManager->blockRecieved(index, begin/BLOCK_SIZE);
+    //qDebug() << "packet received info: index: " << index << " begin: " << begin;
     //qDebug() <<"packet contents: " <<  packet;
+    fileManager->blockRecieved(index, begin/BLOCK_SIZE);
     qDebug() << "Packet length: " << packet.size();
     packet.remove(0,8);
-    //qDebug() << "packet index: " << index <<" packet offset: " << begin;
-    qDebug() << packet;
     fileManager->writeRequest(index, begin, packet);
     if(fileManager->remainingBlocks(index) == 0){
-        qDebug() << "PIECE FINISHED";
-        //validate piece
+        //validate piece if it is finished downloading
         fileManager->addVerifyPiece(index);
     }
 
@@ -281,15 +300,19 @@ void Client::unchoked()
 
 }
 
+void Client::sendHave(quint32 &index)
+{
+    //TODO
+}
+
 
 void Client::peerPieceUpdate()
 {
+    //find a piece in peerPieces, then send request
     bool interested;
     for(int i = 0; i < peerPieces.size(); i++){
         if(peerPieces.testBit(i)){
-            qDebug() << "found peer piece at: " << i;
             if(!myPieces.testBit(i)){
-                qDebug() << "interested in piece " << i;
                 interested = true;
                 testRequest();
             }
@@ -313,19 +336,24 @@ void Client::bitfieldReceived(QByteArray &packet)
         }
     }
 
-    qDebug() << "peer pieces: " << peerPieces;
+    //qDebug() << "peer pieces: " << peerPieces;
 }
 
 void Client::sendInterested()
 {
+
     QByteArray outPacket;
     QDataStream out(&outPacket, QIODevice::WriteOnly);
     out << (qint32)1;
     outPacket.append(char(2));
+    //qDebug() << "Sent INTERESTED message:" << outPacket.toHex();
+
     socket->write(outPacket);
+
     socket->flush();
     clientInterested = true;
-    qDebug() << "Sent INTERESTED message:" << outPacket.toHex();
+    timeoutTimer->start(500000);
+
 }
 
 void Client::initDownload()
@@ -348,12 +376,17 @@ void Client::testRequest()
     if(nextPiece != -1){
         int nextBlock = fileManager->selectBlock(nextPiece);
         int blockLength = fileManager->calcBlockLength(nextPiece, nextBlock);
-        qDebug() << "Piece index: " << nextPiece
-                 << " block index: " << nextBlock
-                 << " block Length: " << blockLength;
+        //qDebug() << "Piece index: " << nextPiece
+        //         << " block index: " << nextBlock
+        //         << " block Length: " << blockLength;
         fileManager->blockRequested(nextPiece, nextBlock);
         sendRequest(nextPiece, nextBlock * BLOCK_SIZE, blockLength);
 
+    } else{
+        //sendInterested();
+        if(myPieces.count(true) == torrent->getPieceHashes().size()){
+            qDebug() << "TORRENT COMPLETED";
+        }
     }
 
 
@@ -368,8 +401,9 @@ void Client::connectPeers(QList<QPair<QString, quint16>> peerList)
 {
     //TODO peerList queue?
     int random = QRandomGenerator::global()->bounded(peerList.size());
+
     for (auto &p : peerList) {
-        qDebug() << "Peer:" << p.first << ":" << p.second;
+        //qDebug() << "Peer:" << p.first << ":" << p.second;
     }
 
     socket->connectToHost(peerList[random].first, peerList[random].second);
@@ -377,6 +411,24 @@ void Client::connectPeers(QList<QPair<QString, quint16>> peerList)
     if(!socket->waitForConnected(5000)){
         qWarning() << "Could not connect: " << socket->errorString();
     }
+
+}
+
+void Client::pieceUpdate(quint32 index)
+{
+    myPieces.setBit(index, true);
+    qDebug() << myPieces.count(true) << "/" << torrent->getPieceHashes().size();
+    sendHave(index);
+
+    double percent = ((myPieces.count(true) * 100) / myPieces.size());
+    emit updateProg(percent);
+
+}
+
+void Client::timeoutSocket()
+{
+    qDebug() << "TIMEOUT - SOCKET ABORTED";
+    socket->abort();
 
 }
 
@@ -391,6 +443,7 @@ void Client::reconnectPeer()
     if(!socket->waitForConnected(5000)){
         qWarning() << "Could not connect: " << socket->errorString();
     }
+    timeoutTimer->start(500000);
 }
 
 
