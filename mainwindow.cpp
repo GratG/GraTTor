@@ -9,6 +9,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
 
+    ui->playPauseBtn->setText("Stop/Start");
     QAction *newTorrAction = new QAction("Add torrent", this);
     ui->menuFile->addAction(newTorrAction);
 
