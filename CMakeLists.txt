@@ -15,12 +15,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets)
 
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+
+
+
+
+
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -35,9 +41,13 @@ find_package(Qt6 REQUIRED COMPONENTS Core)
         bencoding.h bencoding.cpp
         torrent.h torrent.cpp
         client.h client.cpp
-        tracker.cpp
+        tracker.cpp tracker.h
+
         filemanager.h filemanager.cpp
-        tracker.h
+
+        addtorrentdialog.h addtorrentdialog.cpp addtorrentdialog.ui
+
+
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET GraTTor APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -62,6 +72,7 @@ target_link_libraries(GraTTor PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 target_link_libraries(GraTTor PRIVATE Qt6::Core)
 target_link_libraries(GraTTor PRIVATE Qt6::Network)
 target_link_libraries(GraTTor PRIVATE Qt6::Core)
+target_link_libraries(GraTTor PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Widgets)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

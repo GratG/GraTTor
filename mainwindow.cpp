@@ -1,8 +1,12 @@
 #include "mainwindow.h"
+#include "addtorrentdialog.h"
 #include "./ui_mainwindow.h"
 #include <iostream>
 #include <QDebug>
-#include "QFileDialog"
+#include <QFileDialog>
+#include <QMessageBox>
+
+
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -28,9 +32,28 @@ MainWindow::~MainWindow() { delete ui; }
 
 void MainWindow::addTorrentTrigger() {
 
-    QString fileName = QFileDialog::getOpenFileName(this, "Open File", "/home/", "All .torrent files(*.torrent)");
-    QString destinationDir = "/home/downloads/";
-    addTorrent(fileName, destinationDir);
+    QString fn = QFileDialog::getOpenFileName(this, "Open File", "/home/", "All .torrent files(*.torrent)");
+    QString dn = "/home/downloads/";
+
+    if(fn.isEmpty()){
+        return;
+    }
+
+    AddTorrentDialog addDialog(this, fn);
+
+    if(addDialog.exec() == QDialog::Accepted){
+        fn = addDialog.getPath();
+        dn = addDialog.getDest();
+    }
+
+
+    try{
+        addTorrent(fn, dn);
+    } catch (const std::exception &e){
+        QMessageBox::critical(this, "Error", e.what());
+    }
+
+    //addTorrent(fileName, destinationDir);
 
 
 
